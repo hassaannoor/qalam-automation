@@ -5,22 +5,8 @@ import json
 
 session_id_cookie = "1ae8a5081986390ce8dd7816974e65518eee72a8"
 headers = {
-    "accept": "application/json, text/javascript, */*; q=0.01",
-    "accept-language": "en-US,en;q=0.9",
-    "content-type": "multipart/form-data; boundary=----WebKitFormBoundary79B83XpSAqzZqBuB",
-
-    "cache-control": "max-age=0",
-    "priority": "u=0, i",
-    "sec-ch-ua": "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": "\"Windows\"",
-    "sec-fetch-dest": "document",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "same-origin",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
         "cookie": f"frontend_lang=en_US; session_id={session_id_cookie}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 }
 
 def get_form_urls(headers):
@@ -39,25 +25,13 @@ def get_form_urls(headers):
     
     return titles, urls
 
-begin_survey_headers = {
-    "accept": "*/*",
-    "accept-language": "en-US,en;q=0.9",
-    "content-type": "application/json",
-    "priority": "u=1, i",
-    "sec-ch-ua": "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": "\"Windows\"",
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "Referer": "https://qalam.nust.edu.pk/survey/9d0f5a2c-b188-4319-bff2-1e007ca37bfa/b65d279f-8c32-48ff-9413-10bdefad31e4",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-}
+
 def begin_survey(token, access_token):
     # url = "https://qalam.nust.edu.pk/survey/begin/9d0f5a2c-b188-4319-bff2-1e007ca37bfa/b65d279f-8c32-48ff-9413-10bdefad31e4"
 
-    begin_survey_headers["cookie"] = f"frontend_lang=en_US; session_id={session_id_cookie}; tz=Asia/Karachi; survey_{token}={access_token}"
+    begin_survey_headers = {
+        "cookie": f"frontend_lang=en_US; session_id={session_id_cookie}; tz=Asia/Karachi; survey_{token}={access_token}" 
+    }
     # print(begin_survey_headers["cookie"])
     
     url = f"https://qalam.nust.edu.pk/survey/begin/{token}/{access_token}"
@@ -99,12 +73,7 @@ def main():
 
     for idx, url in enumerate(urls):
         try:
-            # if (idx < 6):
-            #     continue
-            # if re.search("Course", titles[idx]) is None:
-            #     continue
             print("Submitting: " + titles[idx])
-
 
             segments = url.split('/')
             token = segments[-2]
@@ -124,7 +93,7 @@ def main():
                 f.write(html)
 
             # skip if already submitted
-            if (html.find("Survey is submitted.") != -1):
+            if (html.find("o_survey_review") != -1):
                 print("Form already submitted")
                 continue
 
@@ -154,29 +123,16 @@ def main():
                 "jsonrpc": "2.0",
                 "method": "call",
                 "params": {
-                    str(sliders_id): sliders_data,  # 767759 will be replaced by sliders_id
+                    str(sliders_id): sliders_data,
                     str(textfield_name): "This form was submitted through an automated system.\r\nDO ME A FAVOR PLEASE DONT FORCE THIS EVAL FORM ON ME.  THOUGH I APPRECIATE THE GESTURE FOR SURE",
                     "csrf_token": csrf,
                     "token": access_token
                 }
             }
 
-            submit_form_headers = {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.9",
-                "content-type": "application/json",
-                "sec-ch-ua": "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": "\"Windows\"",
-                "Referer": "https://qalam.nust.edu.pk/survey/9d0f5a2c-b188-4319-bff2-1e007ca37bfa/b65d279f-8c32-48ff-9413-10bdefad31e4",
-                "Referrer-Policy": "strict-origin-when-cross-origin"
-            }
-            submit_form_headers["cookie"] = f"frontend_lang=en_US; session_id={session_id_cookie}; tz=Asia/Karachi; survey_{token}={access_token}"
-
-
             response = requests.post(
                 f"https://qalam.nust.edu.pk/survey/submit/{token}/{access_token}",
-                headers=submit_form_headers,
+                headers=begin_survey_headers,
                 data=json.dumps(body)
             )
 
