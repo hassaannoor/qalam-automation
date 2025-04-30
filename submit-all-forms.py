@@ -3,7 +3,7 @@ import re
 import json
 
 
-session_id_cookie = "1ae8a5081986390ce8dd7816974e65518eee72a8"
+session_id_cookie = "ce96c3784d0f57090b84cef7f3f9b6b4787d092f"
 headers = {
         "cookie": f"frontend_lang=en_US; session_id={session_id_cookie}",
         # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -30,7 +30,12 @@ def begin_survey(token, access_token):
     # url = "https://qalam.nust.edu.pk/survey/begin/9d0f5a2c-b188-4319-bff2-1e007ca37bfa/b65d279f-8c32-48ff-9413-10bdefad31e4"
 
     begin_survey_headers = {
-        "cookie": f"frontend_lang=en_US; session_id={session_id_cookie}; tz=Asia/Karachi; survey_{token}={access_token}" 
+        "content-type": "application/json",
+        "cookie": f"frontend_lang=en_US; session_id={session_id_cookie}; tz=Asia/Karachi; survey_{token}={access_token}",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "origin": "https://qalam.nust.edu.pk",
+        "priority": "u=1, i",
+        "referer": f"https://qalam.nust.edu.pk/survey/{token}/{access_token}"
     }
     # print(begin_survey_headers["cookie"])
     
@@ -47,12 +52,31 @@ def begin_survey(token, access_token):
         response.raise_for_status()
 
 def get_input_id_fragments(html):
-    # match = re.search(r'id="([0-9]{6})_([0-9]{6})_([0-9]{7})', html)
-    # return [int(match.group(1)), int(match.group(2)), int(match.group(3))] if match else None
-    match = re.search(r'data-name="([0-9]{6})" data-question-type="matrix" data-sub-questions="(\[.+\])"', html)
-    sliders_id = int(match.group(1)) if match else None
-    slider_ids = match.group(2)[1:-1].split(',') if match else None
-    return [sliders_id] + slider_ids if match else None
+    pattern = r'data-name="([0-9]{6})" data-question-type="matrix" data-sub-questions="(\[.+?\])"'
+    matches = list(re.finditer(pattern, html))
+
+    slider_id1 = None
+    slider_ids1 = None
+    slider_id2 = None
+    slider_ids2 = None
+
+    if len(matches) >= 1:
+        match1 = matches[0]
+        slider_id1 = int(match1.group(1))
+        try:
+            slider_ids1 = [int(x.strip().strip('"')) for x in match1.group(2)[1:-1].split(',')]
+        except (ValueError, AttributeError):
+            slider_ids1 = None
+
+    if len(matches) >= 2:
+        match2 = matches[1]
+        slider_id2 = int(match2.group(1))
+        try:
+            slider_ids2 = [int(x.strip().strip('"')) for x in match2.group(2)[1:-1].split(',')]
+        except (ValueError, AttributeError):
+            slider_ids2 = None
+
+    return (slider_id1, slider_ids1), (slider_id2, slider_ids2)
 
 def get_textfield_name(html):
     match = re.search(r'name="([0-9]{6})" data-question-type="text_box"', html)
@@ -62,9 +86,11 @@ def get_csrf(html):
     match = re.search(r'csrf_token: "(.+?)",', html)
     return match.group(1) if match else None
 
-def get_excellent_value(html):
-    match = re.search(r'class="o_survey_form_choice_item d-none" type="radio" name="[0-9_]+" value="(.+?)"', html)
-    return match.group(1) if match else None
+def get_vgood_value(html):
+    pattern = r'class="o_survey_form_choice_item d-none" type="radio" name="[0-9_]+" value="(.+?)"'
+    matches = list(re.finditer(pattern, html))
+    rating = 1 # 0 => excellent, 1 => very good, 2 => good, 3 => average, 4 => poor
+    return matches[rating].group(1) if matches[rating] else None
 
 def main():
     titles, urls = get_form_urls(headers)
@@ -97,12 +123,10 @@ def main():
                 print("Form already submitted")
                 continue
 
-            input_id_fragments = get_input_id_fragments(html)
-            if input_id_fragments is None:
-                raise Exception("Unable to extract input_id_fragments")
-            
-            sliders_id = input_id_fragments[0]
-            slider_ids = input_id_fragments[1:]
+            (slider_id1, slider_ids1), (slider_id2, slider_ids2) = get_input_id_fragments(html)
+
+            if slider_id1 is None and slider_id2 is None:
+                raise Exception("Unable to extract any slider ID fragments")
 
             textfield_name = get_textfield_name(html)
 
@@ -110,24 +134,35 @@ def main():
             if csrf is None:
                 raise Exception("Unable to extract CSRF token")
 
-            EXCELLENT = get_excellent_value(html)
+            EXCELLENT = get_vgood_value(html)
             if EXCELLENT is None:
                 raise Exception("Unable to extract Excellent value")
 
-            sliders_data = {}
-            for slider_id in slider_ids:
-                sliders_data[slider_id] = [str(EXCELLENT)]  # List of values as per format
+            params = {}
+
+            if slider_ids1 is not None:
+                sliders_data1 = {}
+                for slider_id in slider_ids1:
+                    sliders_data1[slider_id] = [str(EXCELLENT)]
+                if slider_id1 is not None:
+                    params[str(slider_id1)] = sliders_data1
+
+            if slider_ids2 is not None:
+                sliders_data2 = {}
+                for slider_id in slider_ids2:
+                    sliders_data2[slider_id] = [str(EXCELLENT)]
+                if slider_id2 is not None:
+                    params[str(slider_id2)] = sliders_data2
+
+            params[str(textfield_name)] = "This form was submitted through an automated system.\r\nDO ME A FAVOR PLEASE DONT FORCE THIS EVAL FORM ON ME.  THOUGH I APPRECIATE THE GESTURE FOR SURE"
+            params["csrf_token"] = csrf
+            params["token"] = access_token
 
             body = {
                 "id": 0,
                 "jsonrpc": "2.0",
                 "method": "call",
-                "params": {
-                    str(sliders_id): sliders_data,
-                    str(textfield_name): "This form was submitted through an automated system.\r\nDO ME A FAVOR PLEASE DONT FORCE THIS EVAL FORM ON ME.  THOUGH I APPRECIATE THE GESTURE FOR SURE",
-                    "csrf_token": csrf,
-                    "token": access_token
-                }
+                "params": params
             }
 
             response = requests.post(
@@ -136,8 +171,13 @@ def main():
                 data=json.dumps(body)
             )
 
-            print(f"Submitted: {titles[idx]}")
-            print(response.text)
+            if response.status_code != 200:
+                print("Error: " + str(response.status_code))
+            else: 
+                print(f"Submitted: {titles[idx]}")
+                
+            with open(f"temp/submission-response-{idx}.html", 'w', encoding='utf-8') as f:
+                f.write(f"{titles[idx]}\n\n" + response.text)
         except Exception as e:
             print(f"Error: {e}")
             continue
