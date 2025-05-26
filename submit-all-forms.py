@@ -2,8 +2,10 @@ import requests
 import re
 import json
 
+# Read session_id_cookie from file
+with open("session_id_cookie.txt", "r") as file:
+    session_id_cookie = file.read().strip()
 
-session_id_cookie = "ce96c3784d0f57090b84cef7f3f9b6b4787d092f"
 headers = {
         "cookie": f"frontend_lang=en_US; session_id={session_id_cookie}",
         # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
